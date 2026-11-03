@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wake-Up Pump</title>
+  
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #F4F7FB; --card-bg: #FFFFFF; --primary: #1C64F2;
+      --text-main: #111928; --text-muted: #6B7280; --danger: #E02424; --success: #31C48D; --border: #E5E7EB;
+    }
+    body {
+      margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg); color: var(--text-main); display: flex; justify-content: center;
+    }
+    
+    /* App Containers */
+    .app-container { width: 100%; max-width: 420px; background: var(--bg); min-height: 100vh; padding-bottom: 80px; display: none; }
+    .page-container { width: 100%; max-width: 420px; background: var(--card-bg); min-height: 100vh; display: none; flex-direction: column; }
+    
+    /* Login Screen */
+    #login-screen { width: 100%; max-width: 420px; background: var(--bg); height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+    .login-card { background: var(--card-bg); padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; text-align: center; }
+    .login-logo { width: 80px; height: 80px; border-radius: 16px; object-fit: cover; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .login-card h2 { margin-top: 0; color: var(--primary); }
+    .login-input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; box-sizing: border-box; text-align:left !important; }
+    #loginError { color: var(--danger); font-size: 13px; display: none; margin-top: 10px; }
+
+    /* Core UI Elements */
+    header { padding: 24px 20px 10px; display: flex; justify-content: space-between; align-items: center; }
+    .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; }
+    .header-text p { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+    
+    .card { background: var(--card-bg); border-radius: 16px; margin: 12px 20px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); position: relative; }
+    
+    /* Horizontal Headers for Profile Page */
+    .section-header { display: flex; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
+    .section-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+    
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .card-header svg { width: 20px; height: 20px; fill: var(--text-muted); }
+    .card-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
+    
+    .time-display { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 0; }
+
+.time-display img {
+  width: 50% !important;
+  max-width: 90px;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+}    
+    .time-texts { 
+  width: 50%;
+  text-align: left; 
+  padding-left: 15px;
+  box-sizing: border-box;
+}
+    .time-texts h2 { 
+  margin: 4px 0; 
+  font-size: 28px; 
+  font-weight: 700; 
+  letter-spacing: 0.5px; 
+}
+
+.time-texts p { 
+  margin: 2px 0 0; 
+  font-size: 13px; 
+  color: var(--text-muted); 
+}
+    
+    .input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: #f9fafb; padding: 10px 15px; border-radius: 12px;}
+    input[type="time"], input[type="text"], input[type="number"], select { border: none; background: transparent; font-size: 16px; font-weight: 600; color: var(--text-main); outline: none; width: 100%; font-family: inherit; text-align: right;}
+    select { direction: rtl; } /* Aligns dropdown text to right */
+    
+    .btn { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn-save { margin: 20px; width: calc(100% - 40px); background-color: #9CA3AF; cursor: not-allowed; transition: background-color 0.3s ease; }
+    .btn-save.active { background-color: var(--primary); cursor: pointer; }
+
+    .row-card { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; }
+    .row-left { display: flex; align-items: center; gap: 12px; }
+    .row-left svg { width: 20px; height: 20px; fill: var(--text-main); }
+    .row-texts h4 { margin: 0; font-size: 14px; font-weight: 600; }
+    .row-texts p { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); }
+    .row-right { font-size: 18px; font-weight: 700; }
+    
+    .val-red { color: var(--danger); }
+    .val-green { color: var(--success); }
+    .val-blue { color: var(--primary); font-size: 22px !important; }
+
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 420px; background: var(--card-bg); display: flex; justify-content: space-around; padding: 16px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.03); border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 100;}
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer;}
+    .nav-item.active { color: var(--primary); }
+    .nav-item svg { width: 22px; height: 22px; fill: currentColor; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+    th { color: var(--text-muted); font-weight: 600; }
+    
+    .profile-pic-container { display: flex; justify-content: center; margin-bottom: 20px; position: relative; cursor: pointer; }
+    .profile-pic { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--border); object-fit: cover; }
+    .edit-badge { position: absolute; bottom: 0; right: calc(50% - 40px); background: var(--primary); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; border: 2px solid white; pointer-events: none;}
+    
+    /* Strictly Horizontal Input Group */
+    .profile-input-group { display: flex; flex-direction: row; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 10px 15px; background: #fff;}
+    .profile-input-group label { font-size: 14px; color: var(--text-muted); white-space: nowrap; margin-right: 15px; font-weight: 600; }
+    
+    .logout-btn { width: calc(100% - 40px); margin: 0 20px 20px 20px; background: transparent; border: 2px solid var(--danger); color: var(--danger); padding: 15px; border-radius: 8px; font-size: 18px; font-weight: 600; letter-spacing: 2px; text-align: center; cursor: pointer; transition: 0.3s; box-sizing: border-box;}
+    .logout-btn:active { background: var(--danger); color: white; }
+    
+    .footer-links { text-align: center; font-size: 11px; color: var(--text-muted); margin-bottom: 5px; }
+    .footer-links span { margin: 0 10px; cursor: pointer; text-decoration: underline; color: var(--primary);}
+    .footer-credit { text-align: center; font-size: 12px; color: var(--text-main); font-weight: 500; margin-bottom: 30px;}
+
+    /* Modals & Toasts */
+    .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #333; color: #fff; padding: 12px 20px; border-radius: 30px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; z-index: 1000; transition: transform 0.4s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 80%; max-width: 350px;}
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { background-color: var(--success); }
+    .toast.error { background-color: var(--danger); }
+    .toast svg { width: 20px; height: 20px; fill: white; flex-shrink: 0;}
+
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 2000; }
+    .modal-box { background: var(--card-bg); width: 90%; max-width: 380px; border-radius: 16px; padding: 20px; box-sizing: border-box; text-align: center; max-height: 90vh; overflow-y: auto;}
+    .modal-box h3 { margin-top: 0; color: var(--text-main); }
+    .modal-actions { display: flex; gap: 10px; justify-content: space-between; margin-top: 20px; }
+    .modal-btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;}
+    .btn-cancel { background: #E5E7EB; color: #374151; }
+    .btn-confirm { background: var(--danger); color: white; }
+    .btn-primary { background: var(--primary); color: white; }
+
+    /* Dummy Page Styles */
+    .page-header { padding: 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid var(--border); }
+    .page-header svg { width: 24px; height: 24px; cursor: pointer; fill: var(--text-main); }
+    .page-header h2 { margin: 0; font-size: 18px; }
+    .page-content { padding: 20px; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* Cropper Specific */
+    .cropper-container-wrapper { width: 100%; height: 300px; background: #eee; margin-bottom: 15px; }
+    .cropper-controls { display: flex; gap: 10px; margin-bottom: 15px; justify-content: center;}
+    .cropper-btn { background: #f3f4f6; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; cursor: pointer; display:flex; align-items:center; gap:5px;}
+  </style>
+</head>
+<body>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastMessage" class="toast">
+    <svg id="toastIcon" viewBox="0 0 24 24"></svg>
+    <span id="toastText">Message goes here</span>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen">
+    <div class="login-card">
+      <img src="https://cdn-icons-png.flaticon.com/512/3208/3208726.png" class="login-logo" alt="Pump Logo">
+      <h2>Pump Login</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Enter credentials to access controls</p>
+      <input type="number" id="loginPhone" class="login-input" placeholder="User Phone (e.g. 9876543210)">
+      <input type="number" id="loginPassword" class="login-input" placeholder="Password (e.g. 1234)">
+      <button class="btn" onclick="handleLogin()" style="margin-top: 15px;">Login</button>
+      <p id="loginError">Invalid Phone or Password!</p>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="app-container" id="main-app">
+    <header>
+      <div class="header-text">
+        <h1>Wake-Up Pump</h1>
+        <p>Smart • Simple • Reliable</p>
+      </div>
+    </header>
+
+    <!-- HOME TAB -->
+    <div id="home-tab" class="tab-content active">
+      <div class="card time-display">
+        <img src="https://cdn-icons-png.flaticon.com/512/8154/8154438.png" width="70" height="70" alt="Clock Icon">
+        <div class="time-texts">
+          <div class="card-header" style="margin-bottom: 0;"><h3>Current Time</h3></div>
+          <h2 id="currTime">--:--</h2>
+          <p id="currDate">Loading...</p>
+        </div>
+      </div>
+      
+      <!-- Alarm 1 -->
+      <div class="card">
+        <div class="card-header">
+          <svg viewBox="0 0 24 24"><path d="M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/></svg>
+          <h3>Set Wake-up Time 1</h3>
+        </div>
+        <div class="input-row"><input type="time" id="alarmTime" value="06:30"></div>
+        <button class="btn" onclick="setAlarm(1)">Save Alarm 1</button>
+      </div>
+
+      <!-- Alarm 2 -->
+      <div class="card" id="alarm2-container" style="display: none;">
+        <div class="card-header">
+          <svg viewBox="0 0 24 24"><path d="M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/></svg>
+          <h3>Set Wake-up Time 2</h3>
+        </div>
+        <div class="input-row"><input type="time" id="alarmTime2" value="07:30"></div>
+        <button class="btn" onclick="setAlarm(2)">Save Alarm 2</button>
+      </div>
+
+      <div class="card row-card">
+        <div class="row-left">
+          <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+          <div class="row-texts"><h4>Active Alarms</h4><p id="alarmStatus">Not set.</p></div>
+        </div>
+      </div>
+      <div class="card row-card">
+        <div class="row-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+          <div class="row-texts"><h4>Pump Status</h4></div>
+        </div>
+        <div class="row-right val-red" id="pumpStat">OFF</div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div id="history-tab" class="tab-content">
+      <div class="card">
+        <h3>Reaction Time Trend</h3>
+        <canvas id="reactionChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>Recent Activity</h3>
+        <table id="historyTable">
+          <thead><tr><th>Date</th><th>Time</th><th>Reaction</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div id="profile-tab" class="tab-content">
+      
+      <!-- Profile Details Horizontal Section -->
+      <div class="card">
+        <div class="section-header">
+          <h3>Profile Details</h3>
+        </div>
+        
+        <label for="profilePicInput" class="profile-pic-container">
+          <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic" id="profileImg" alt="Profile">
+          <div class="edit-badge">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          </div>
+        </label>
+        <input type="file" id="profilePicInput" accept="image/*" style="display: none;">
+
+        <div class="profile-input-group">
+          <label>Name</label>
+          <input type="text" id="userName" value="Asad madni" oninput="markProfileChanged()">
+        </div>
+        
+        <div class="profile-input-group">
+          <label>Occupation</label>
+          <select id="userRole" onchange="markProfileChanged()">
+            <option value="Student">Student</option>
+            <option value="Teacher">Teacher</option>
+            <option value="Business">Business</option>
+            <option value="Researcher">Researcher</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Pump Settings Horizontal Section -->
+      <div class="card">
+        <div class="section-header">
+          <h3>Pump Settings</h3>
+        </div>
+        
+        <div class="profile-input-group">
+          <label>Pattern</label>
+          <select id="pumpPattern" onchange="markProfileChanged()">
+            <option value="normal">Normal (Continuous)</option>
+            <option value="onoff">On-Off, On-Off</option>
+            <option value="1sec">1s On / 1s Off</option>
+          </select>
+        </div>
+
+        <div class="profile-input-group">
+          <label>Max Time (s)</label>
+          <input type="number" id="pumpMaxTime" placeholder="e.g. 10" oninput="markProfileChanged()">
+        </div>
+        
+        <div class="profile-input-group">
+          <label>Timer Type</label>
+          <select id="timerType" onchange="markProfileChanged()">
+            <option value="single">Single Timer</option>
+            <option value="double">Double Timer</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="saveProfileBtn" class="btn btn-save" onclick="saveProfile()" disabled>Save Profile Changes</button>
+      <div class="logout-btn" onclick="openLogoutModal()">LOGOUT</div>
+
+      <div class="footer-links">
+        <span onclick="openDummyPage('Privacy Policy')">Privacy policy</span> | 
+        <span onclick="openDummyPage('Terms & Conditions')">Terms & condition</span>
+      </div>
+      <div class="footer-credit">
+        This app was build by Asad madni
+      </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+      <div class="nav-item active" onclick="switchTab('home')" id="nav-home">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('history')" id="nav-history">
+        <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+        <span>History</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('profile')" id="nav-profile">
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span>Profile</span>
+      </div>
+    </nav>
+  </div>
+
+  <!-- REDIRECT DUMMY PAGE -->
+  <div class="page-container" id="dummy-page">
+    <div class="page-header">
+      <svg onclick="closeDummyPage()" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      <h2 id="dummy-page-title">Page Title</h2>
+    </div>
+    <div class="page-content">
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi pellentesque metus accumsan, vestibulum sem eu, scelerisque leo. Donec sodales velit quis risus aliquet consequat.</p>
+      <p>Pellentesque id nunc sit amet urna elementum iaculis. Suspendisse non nunc ut diam congue vestibulum at sit amet felis. Aenean sollicitudin justo enim, non euismod sapien congue in.</p>
+      <p>Vivamus hendrerit arcu sed erat molestie vehicula. Sed auctor neque eu tellus rhoncus ut eleifend nibh porttitor. Ut in nulla enim.</p>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Image Cropper Modal -->
+  <div id="cropperModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Adjust Profile Photo</h3>
+      <div class="cropper-container-wrapper">
+        <img id="imageToCrop" src="" style="max-width: 100%; display: none;">
+      </div>
+      <div class="cropper-controls">
+        <button class="cropper-btn" onclick="rotateCropper(-90)">↺ Left</button>
+        <button class="cropper-btn" onclick="rotateCropper(90)">↻ Right</button>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn btn-cancel" onclick="closeCropper()">Cancel</button>
+        <button class="modal-btn btn-primary" onclick="applyCrop()">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logoutModal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 300px;">
+      <h3>Confirm Logout</h3>
+      <p style="color:var(--text-muted); font-size:14px;">Are you sure you want to logout?</p>
+      <div class="modal-actions">
+        <button class="modal-btn btn-cancel" onclick="closeModal('logoutModal')">No</button>
+        <button class="modal-btn btn-confirm" onclick="confirmLogout()">Yes, Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- SUPABASE CONFIGURATION ---
+    const SUPABASE_URL = 'https://rubhdpgebyjtqwwyyzox.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YmhkcGdlYnlqdHF3d3l5em94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MDk3ODQsImV4cCI6MjEwOTI4NTc4NH0.vxWRPW4gBhyYCRnpiShPC-jVOr9--yMTpuExEHIktCs';
+    
+    // Safely wrap Supabase initialization to prevent button crash on dummy keys
+    let supabaseClient = null;
+    try {
+      if(window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch(e) {
+      console.warn("Supabase init bypassed (Dummy Keys likely used).");
+    }
+    
+    let chartInstance = null;
+    let dbUserId = null; 
+    let cropperInstance = null;
+    
+    const VALID_PHONE = "9876543210";
+    const VALID_PASS = "1234";
+
+    const SVG_SUCCESS = `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>`;
+    const SVG_ERROR = `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>`;
+
+    window.onload = function() {
+      if(localStorage.getItem('pumpLoggedIn') === 'true') {
+        showApp();
+        loadProfile(); 
+      } else {
+        showLogin();
+      }
+      startLocalClock();
+    };
+
+    function startLocalClock() {
+      setInterval(() => {
+        const now = new Date();
+        document.getElementById('currTime').innerText = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        document.getElementById('currDate').innerText = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      }, 1000);
+    }
+
+    // --- Auth Logic ---
+    function handleLogin() {
+      let phone = document.getElementById('loginPhone').value;
+      let pass = document.getElementById('loginPassword').value;
+      if(phone === VALID_PHONE && pass === VALID_PASS) {
+        localStorage.setItem('pumpLoggedIn', 'true');
+        document.getElementById('loginError').style.display = 'none';
+        showApp();
+        loadProfile();
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    }
+
+    function openLogoutModal() { document.getElementById('logoutModal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    
+    function confirmLogout() {
+      closeModal('logoutModal');
+      localStorage.removeItem('pumpLoggedIn');
+      document.getElementById('loginPhone').value = "";
+      document.getElementById('loginPassword').value = "";
+      showLogin();
+      switchTab('home'); 
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+    }
+    function showLogin() {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('main-app').style.display = 'none';
+    }
+
+    // --- Dummy Page Redirect Logic ---
+    function openDummyPage(title) {
+      document.getElementById('main-app').style.display = 'none';
+      document.getElementById('dummy-page').style.display = 'flex';
+      document.getElementById('dummy-page-title').innerText = title;
+    }
+    function closeDummyPage() {
+      document.getElementById('dummy-page').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+    }
+
+    // --- Toast Notification ---
+    function showToast(message, isSuccess) {
+      const toast = document.getElementById('toastMessage');
+      const icon = document.getElementById('toastIcon');
+      
+      toast.className = 'toast'; 
+      if(isSuccess) {
+        toast.classList.add('success');
+        icon.innerHTML = SVG_SUCCESS;
+      } else {
+        toast.classList.add('error');
+        icon.innerHTML = SVG_ERROR;
+      }
+      
+      document.getElementById('toastText').innerText = message;
+      toast.classList.add('show');
+      setTimeout(() => { toast.classList.remove('show'); }, 3000);
+    }
+
+    // --- DB Integration & UI Logic ---
+    async function loadProfile() {
+      if(!supabaseClient) return; // Skip if no DB
+      try {
+        const { data, error } = await supabaseClient.from('user_settings').select('*').limit(1).maybeSingle();
+        if (data && !error) {
+          dbUserId = data.id; 
+          if(data.profile_pic) document.getElementById('profileImg').src = data.profile_pic;
+          document.getElementById('userName').value = data.user_name || 'Asad madni';
+          document.getElementById('userRole').value = data.user_role || 'Student';
+          document.getElementById('pumpPattern').value = data.pump_pattern || 'normal';
+          document.getElementById('pumpMaxTime').value = data.pump_max_time || '';
+          document.getElementById('timerType').value = data.timer_type || 'single';
+          if(data.wake_up_time) document.getElementById('alarmTime').value = data.wake_up_time;
+          if(data.wake_up_time_2) document.getElementById('alarmTime2').value = data.wake_up_time_2;
+          
+          updateDoubleTimerUI(data.timer_type || 'single');
+        }
+      } catch (err) {}
+    }
+
+    function markProfileChanged() {
+      const saveBtn = document.getElementById('saveProfileBtn');
+      saveBtn.disabled = false;
+      saveBtn.classList.add('active');
+      saveBtn.innerText = "Save Profile Changes";
+    }
+
+    async function saveProfile() {
+      if(!supabaseClient) { showToast("No DB Connected", false); return; }
+      const saveBtn = document.getElementById('saveProfileBtn');
+      saveBtn.innerText = "Saving...";
+
+      const profileData = {
+        user_name: document.getElementById('userName').value,
+        user_role: document.getElementById('userRole').value,
+        pump_pattern: document.getElementById('pumpPattern').value,
+        pump_max_time: parseInt(document.getElementById('pumpMaxTime').value) || null,
+        timer_type: document.getElementById('timerType').value,
+        profile_pic: document.getElementById('profileImg').src,
+        updated_at: new Date().toISOString()
+      };
+
+      if (dbUserId) profileData.id = dbUserId;
+
+      try {
+        const { data, error } = await supabaseClient.from('user_settings').upsert(profileData).select();
+        if (!error && data && data.length > 0) {
+          dbUserId = data[0].id;
+          saveBtn.disabled = true;
+          saveBtn.classList.remove('active');
+          saveBtn.innerText = "Saved!";
+          updateDoubleTimerUI(profileData.timer_type);
+          setTimeout(() => { if(saveBtn.disabled) saveBtn.innerText = "Save Profile Changes"; }, 2000);
+        } else throw new Error("DB Error");
+      } catch (err) {
+        saveBtn.innerText = "Error Saving";
+        showToast("Failed to save profile.", false);
+      }
+    }
+
+    function updateDoubleTimerUI(timerType) {
+      document.getElementById('alarm2-container').style.display = (timerType === 'double') ? 'block' : 'none';
+      updateAlarmStatusUI();
+    }
+
+    function updateAlarmStatusUI() {
+      const t1 = document.getElementById("alarmTime").value;
+      const t2 = document.getElementById("alarmTime2").value;
+      const isDouble = document.getElementById('timerType').value === 'double';
+      let statusText = t1 || "Not set";
+      if (isDouble && t2) statusText += " & " + t2;
+      document.getElementById("alarmStatus").innerText = statusText;
+    }
+
+    async function setAlarm(alarmNum) {
+      let timeVal = (alarmNum === 1) ? document.getElementById("alarmTime").value : document.getElementById("alarmTime2").value;
+      if(!timeVal) return;
+
+      if(!supabaseClient) {
+        showToast(`Alarm ${alarmNum} set for ${timeVal}`, true);
+        updateAlarmStatusUI();
+        return;
+      }
+
+      let updateData = {};
+      if (alarmNum === 1) updateData.wake_up_time = timeVal;
+      if (alarmNum === 2) updateData.wake_up_time_2 = timeVal;
+      if (dbUserId) updateData.id = dbUserId;
+
+      try {
+        const { error } = await supabaseClient.from('user_settings').upsert(updateData);
+        if(error) throw error;
+        showToast(`Alarm ${alarmNum} set for ${timeVal}`, true);
+        updateAlarmStatusUI();
+        let endpoint = (alarmNum === 1) ? `/setAlarm?time=${timeVal}` : `/setAlarm2?time=${timeVal}`;
+        fetch(endpoint).catch(() => {});
+      } catch (err) {
+        showToast(`Failed to save Alarm ${alarmNum}`, false);
+      }
+    }
+
+    // --- Image Cropper Logic ---
+    document.getElementById('profilePicInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.getElementById('imageToCrop');
+          img.src = e.target.result;
+          document.getElementById('cropperModal').style.display = 'flex';
+          
+          if(cropperInstance) cropperInstance.destroy();
+          cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1, autoCropArea: 1 });
+        }
+        reader.readAsDataURL(file);
+      }
+      this.value = ''; 
+    });
+
+    function rotateCropper(degree) { if(cropperInstance) cropperInstance.rotate(degree); }
+    function closeCropper() {
+      document.getElementById('cropperModal').style.display = 'none';
+      if(cropperInstance) cropperInstance.destroy();
+    }
+    function applyCrop() {
+      if(!cropperInstance) return;
+      document.getElementById('profileImg').src = cropperInstance.getCroppedCanvas({ width: 200, height: 200 }).toDataURL();
+      closeCropper();
+      markProfileChanged();
+    }
+
+    // --- Navigation ---
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.getElementById(tab + '-tab').classList.add('active');
+      document.getElementById('nav-' + tab).classList.add('active');
+    }
+  </script>
+</body>
+</html>
